@@ -1,0 +1,26 @@
+# Build output
+/build/
+
+# Release archives from build.py --package
+/dist/
+
+# Fetched by build.py, checksum-verified on download - not part of the source tree
+/third_party/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Visual Studio / MSVC leftovers
+*.user
+*.suo
+*.sdf
+*.opensdf
+*.aps
+*.ncb
+*.ilk
+*.pdb
+*.obj
+*.res
+.vs/
+ipch/
