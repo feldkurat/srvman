@@ -63,6 +63,7 @@ deadlock the sender.
 build.py              build system - the VS2008 .sln/.vcproj in src/ are dead, ignore them
 src/*.cpp, *.h        first-party code
 src/srvman.rc         all dialogs, the menu, version info
+src/srvman.manifest   DPI awareness; merged into the linker-generated manifest
 src/resource.h        control and command IDs
 src/version.h         the version number - the only place it is spelled out
 src/BazisLib/         VENDORED - see below
@@ -92,6 +93,26 @@ Match the surrounding code; it is consistent and old-school.
 - Comments explain *why*, not what. Doxygen `//!` for declarations in headers. Keep the
   density low — the existing code comments the surprising parts and nothing else.
 - Handlers go in the message map in the same order as their declarations.
+
+## High DPI
+
+The process is **system DPI aware** (`src/srvman.manifest`, merged in by `/MANIFESTINPUT`).
+Without that declaration Windows renders the app at 96 DPI and stretches the result, which
+is why the text used to be blurry above 100%.
+
+- Dialog templates need nothing: USER32 sizes dialog units from the dialog font, which it
+  picks at the DPI in effect. `SystemParametersInfo` and `GetSystemMetrics` likewise
+  return scaled values now — that is what `SM_CXSMICON` is for in the image list code.
+- Anything the code states in **pixels** must go through `Dpi::Scale()` (`src/Dpi.h`). The
+  list view column defaults in `MainDlg.cpp` are the existing case.
+- **Sizes read back from the registry are already in device pixels** and must not be
+  scaled again — `SaveState()` writes what `GetColumnWidth()` reported. Only the built-in
+  defaults are 96 DPI values; that is why the width is scaled on the `ReadValue()` failure
+  path and nowhere else.
+- `Dpi::Current()` caches, which is correct only as long as awareness stays *system*.
+  Moving to per-monitor means a `WM_DPICHANGED` handler that rebuilds the image lists,
+  the menu font in `Theme.cpp` and the column widths — do not declare `permonitorv2` in
+  the manifest without writing it.
 
 ## Landmines
 

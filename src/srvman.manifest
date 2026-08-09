@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+	Merged into the linker-generated manifest via /MANIFESTINPUT (see build.py), so it
+	carries only what the linker does not already emit: the comctl32 v6 dependency comes
+	from the #pragma directives in stdafx.h and the asInvoker trustInfo from /MANIFESTUAC.
+	Declaring either here as well would give mt.exe two copies to reconcile.
+
+	Without a dpiAware declaration the process is DPI-unaware and Windows renders it at
+	96 DPI into a bitmap that it then stretches to the real scale, which is what makes the
+	text blurry on anything above 100%. "system" is as far as srvman goes: the layout is
+	built once from the DPI in effect at startup, so dragging the window to a monitor with
+	a different scale still falls back to stretching. Going per-monitor would mean
+	rebuilding the fonts, image lists and column widths on WM_DPICHANGED.
+
+	No <supportedOS> element here on purpose: Theme.cpp reads the build number through
+	RtlGetNtVersionNumbers() rather than GetVersionEx(), so nothing needs the shim lifted.
+-->
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+	<application xmlns="urn:schemas-microsoft-com:asm.v3">
+		<windowsSettings>
+			<dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true</dpiAware>
+			<dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">system</dpiAwareness>
+		</windowsSettings>
+	</application>
+</assembly>

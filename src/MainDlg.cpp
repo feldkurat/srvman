@@ -7,6 +7,7 @@
 
 #include "MainDlg.h"
 #include "cmdline.h"
+#include "Dpi.h"
 #include "PropertiesDlg.h"
 
 #include <bzscore/file.h>
@@ -68,7 +69,11 @@ LRESULT CMainDlg::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam
 
 	for (unsigned i = 0; i < __countof(s_Columns); i++)
 	{
-		rkColumnWidths[s_Columns[i].pRegistryKeyName].ReadValue(&s_Columns[i].DefaultWidth);
+		//A width that a previous session stored is already in device pixels and is taken
+		//as it is. Only the built-in defaults above are written for 96 DPI and need
+		//scaling, or every column would come out a third too narrow at 150%.
+		if (!rkColumnWidths[s_Columns[i].pRegistryKeyName].ReadValue(&s_Columns[i].DefaultWidth).Successful())
+			s_Columns[i].DefaultWidth = Dpi::Scale(s_Columns[i].DefaultWidth);
 
 		rkVisibleCols[s_Columns[i].pRegistryKeyName].ReadValue(&s_Columns[i].Enabled);
 		m_ListView.SetColumnWidth(i, s_Columns[i].Enabled ? s_Columns[i].DefaultWidth : 0);
@@ -77,16 +82,20 @@ LRESULT CMainDlg::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam
 
 	m_ParamsRoot[_T("IconDisplayMode")].ReadValue((unsigned *)&m_IconDisplayMode);
 
-	m_ImageList.Create(16, 16, ILC_COLOR4 | ILC_MASK, 4, 0);
-	m_ImageList.AddIcon(LoadIcon(_Module.GetResourceInstance(), MAKEINTRESOURCE(IDI_GREY)));
-	m_ImageList.AddIcon(LoadIcon(_Module.GetResourceInstance(), MAKEINTRESOURCE(IDI_YELLOW)));
-	m_ImageList.AddIcon(LoadIcon(_Module.GetResourceInstance(), MAKEINTRESOURCE(IDI_GREEN)));
-	m_ImageList.AddIcon(LoadIcon(_Module.GetResourceInstance(), MAKEINTRESOURCE(IDI_RED)));
-	m_ImageList.AddIcon(LoadIcon(_Module.GetResourceInstance(), MAKEINTRESOURCE(IDI_DRIVER)));
-	m_ImageList.AddIcon(LoadIcon(_Module.GetResourceInstance(), MAKEINTRESOURCE(IDI_FSDRIVER)));
-	m_ImageList.AddIcon(LoadIcon(_Module.GetResourceInstance(), MAKEINTRESOURCE(IDI_SERV)));
-	m_ImageList.AddIcon(LoadIcon(_Module.GetResourceInstance(), MAKEINTRESOURCE(IDI_MULTISERV)));
-	m_ImageList.AddIcon(LoadIcon(_Module.GetResourceInstance(), MAKEINTRESOURCE(IDI_INTERACTIVE)));
+	//The list view sizes its rows from the image list, so the icons have to follow the
+	//DPI as well: SM_CXSMICON is the 16x16 small icon size already scaled by Windows.
+	const int cxIcon = ::GetSystemMetrics(SM_CXSMICON), cyIcon = ::GetSystemMetrics(SM_CYSMICON);
+
+	m_ImageList.Create(cxIcon, cyIcon, ILC_COLOR4 | ILC_MASK, 4, 0);
+	Dpi::AddIconToImageList(m_ImageList, IDI_GREY, cxIcon, cyIcon);
+	Dpi::AddIconToImageList(m_ImageList, IDI_YELLOW, cxIcon, cyIcon);
+	Dpi::AddIconToImageList(m_ImageList, IDI_GREEN, cxIcon, cyIcon);
+	Dpi::AddIconToImageList(m_ImageList, IDI_RED, cxIcon, cyIcon);
+	Dpi::AddIconToImageList(m_ImageList, IDI_DRIVER, cxIcon, cyIcon);
+	Dpi::AddIconToImageList(m_ImageList, IDI_FSDRIVER, cxIcon, cyIcon);
+	Dpi::AddIconToImageList(m_ImageList, IDI_SERV, cxIcon, cyIcon);
+	Dpi::AddIconToImageList(m_ImageList, IDI_MULTISERV, cxIcon, cyIcon);
+	Dpi::AddIconToImageList(m_ImageList, IDI_INTERACTIVE, cxIcon, cyIcon);
 
 	// Grid lines are dropped in dark mode: comctl32 derives their colour internally
 	// rather than from SetTextColor(), and what it picks is all but invisible there.

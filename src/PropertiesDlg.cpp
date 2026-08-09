@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "PropertiesDlg.h"
 
+#include "Dpi.h"
+
 using namespace BazisLib::Win32;
 
 CPropertiesDlg::CPropertiesDlg(const String &Name, Service *pService, bool ReadOnly)
@@ -26,19 +28,23 @@ LRESULT CPropertiesDlg::OnInitDialog( UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /
 
 	DlgResize_Init();
 
-	m_ImageList.Create(16, 16, ILC_COLOR4 | ILC_MASK, 4, 0);
-	m_ImageList.AddIcon(LoadIcon(_Module.GetResourceInstance(), MAKEINTRESOURCE(IDI_DRIVER)));
-	m_ImageList.AddIcon(LoadIcon(_Module.GetResourceInstance(), MAKEINTRESOURCE(IDI_FSDRIVER)));
-	m_ImageList.AddIcon(LoadIcon(_Module.GetResourceInstance(), MAKEINTRESOURCE(IDI_SERV)));
-	m_ImageList.AddIcon(LoadIcon(_Module.GetResourceInstance(), MAKEINTRESOURCE(IDI_MULTISERV)));
-	m_ImageList.AddIcon(LoadIcon(_Module.GetResourceInstance(), MAKEINTRESOURCE(IDR_MAINFRAME)));
-	
-	m_ImageList.AddIcon(LoadIcon(_Module.GetResourceInstance(), MAKEINTRESOURCE(IDI_AUTO)));
-	m_ImageList.AddIcon(LoadIcon(_Module.GetResourceInstance(), MAKEINTRESOURCE(IDI_BOOT)));
-	m_ImageList.AddIcon(LoadIcon(_Module.GetResourceInstance(), MAKEINTRESOURCE(IDI_MANUAL)));
-	m_ImageList.AddIcon(LoadIcon(_Module.GetResourceInstance(), MAKEINTRESOURCE(IDI_DISABLED)));
-	m_ImageList.AddIcon(LoadIcon(_Module.GetResourceInstance(), MAKEINTRESOURCE(IDI_SYSTEM)));
-	
+	//Both combo boxes take their item height from the image list, so the icons are sized
+	//from the DPI-scaled small icon metric rather than a fixed 16x16.
+	const int cxIcon = ::GetSystemMetrics(SM_CXSMICON), cyIcon = ::GetSystemMetrics(SM_CYSMICON);
+
+	m_ImageList.Create(cxIcon, cyIcon, ILC_COLOR4 | ILC_MASK, 4, 0);
+	Dpi::AddIconToImageList(m_ImageList, IDI_DRIVER, cxIcon, cyIcon);
+	Dpi::AddIconToImageList(m_ImageList, IDI_FSDRIVER, cxIcon, cyIcon);
+	Dpi::AddIconToImageList(m_ImageList, IDI_SERV, cxIcon, cyIcon);
+	Dpi::AddIconToImageList(m_ImageList, IDI_MULTISERV, cxIcon, cyIcon);
+	Dpi::AddIconToImageList(m_ImageList, IDR_MAINFRAME, cxIcon, cyIcon);
+
+	Dpi::AddIconToImageList(m_ImageList, IDI_AUTO, cxIcon, cyIcon);
+	Dpi::AddIconToImageList(m_ImageList, IDI_BOOT, cxIcon, cyIcon);
+	Dpi::AddIconToImageList(m_ImageList, IDI_MANUAL, cxIcon, cyIcon);
+	Dpi::AddIconToImageList(m_ImageList, IDI_DISABLED, cxIcon, cyIcon);
+	Dpi::AddIconToImageList(m_ImageList, IDI_SYSTEM, cxIcon, cyIcon);
+
 	m_cbServiceType.m_hWnd = GetDlgItem(IDC_SERVICETYPE);
 	m_cbStartMode.m_hWnd = GetDlgItem(IDC_STARTMODE);
 

@@ -10,7 +10,8 @@ format, so this script drives the compiler directly:
   * provisions the WTL headers the UI code needs (WTL is not part of the SDK),
   * compiles the handful of BazisLib translation units srvman links against,
   * compiles srvman's own sources and the resource script,
-  * links ``srvman.exe`` with an embedded manifest (comctl32 v6).
+  * links ``srvman.exe`` with an embedded manifest (comctl32 v6 from the
+    ``#pragma`` directives in stdafx.h, DPI awareness from src/srvman.manifest).
 
 BazisLib is vendored: the exact subset srvman needs lives in ``src/BazisLib``,
 so a build requires no checkout next to this repository.  See
@@ -725,7 +726,10 @@ def build_arch(
 
     # ---- link -------------------------------------------------------------
     exe = build_dir / "srvman.exe"
-    inputs = [o for _, o in jobs] + [res_file]
+    manifest = SRC_DIR / "srvman.manifest"
+    if not manifest.is_file():
+        raise BuildError(f"missing manifest: {manifest}")
+    inputs = [o for _, o in jobs] + [res_file, manifest]
     up_to_date = exe.is_file() and all(
         exe.stat().st_mtime >= i.stat().st_mtime for i in inputs
     )
@@ -735,7 +739,11 @@ def build_arch(
         "/nologo",
         f"/MACHINE:{LINK_MACHINE[arch]}",
         "/SUBSYSTEM:WINDOWS",
+        # The DPI awareness declaration is merged into the manifest the linker
+        # generates from the #pragma comment(linker, "/manifestdependency:...")
+        # directives; /MANIFESTINPUT is only honoured together with /MANIFEST:EMBED.
         "/MANIFEST:EMBED",
+        f"/MANIFESTINPUT:{manifest}",
         "/DYNAMICBASE", "/NXCOMPAT",
         f"/OUT:{exe}",
     ]

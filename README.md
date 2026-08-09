@@ -56,9 +56,19 @@ Output lands in `build/<arch>/<Config>/srvman.exe`. The Release build is statica
 against the CRT (`/MT`), so the executable is self-contained — copy it anywhere and run it.
 
 The script locates Visual Studio through `vswhere`, runs `vcvarsall.bat` for the requested
-target, compiles every translation unit in parallel and links with an embedded comctl32 v6
-manifest. There is no precompiled header, and touching any header under `src/` triggers a
-full rebuild.
+target, compiles every translation unit in parallel and links with an embedded manifest —
+comctl32 v6 from the `#pragma` directives in `src/stdafx.h`, merged with the DPI awareness
+declaration in `src/srvman.manifest`. There is no precompiled header, and touching any
+header under `src/` triggers a full rebuild.
+
+### High DPI
+
+The binary declares itself **system DPI aware**, so Windows lets it draw at the real
+resolution instead of stretching a 96 DPI bitmap — that stretching is what used to make
+the text blurry at 125% and above. Dialog layouts scale on their own (USER32 derives
+dialog units from the dialog font); the sizes the code states in pixels go through
+`src/Dpi.h`. Awareness is per process and fixed at startup: moving the window to a monitor
+with a different scale falls back to stretching until srvman is restarted there.
 
 Useful extras:
 
