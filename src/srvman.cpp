@@ -5,6 +5,7 @@
 
 #include "resource.h"
 
+#include "Font.h"
 #include "MainDlg.h"
 #include "Theme.h"
 #include "cmdline.h"
@@ -59,12 +60,21 @@ int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPTSTR /*
 	// Must precede the first window: the app-mode switch is only observed by common
 	// controls created after it.
 	Theme::Init();
+	// Same, for a different reason: the font is read out of the dialog template as USER32
+	// instantiates it.
+	Font::Init();
 
 	int nRet = 0;
 	// BLOCK: Run application
 	{
-		CMainDlg dlgMain;
-		nRet = (int)dlgMain.DoModal();
+		// Picking a font ends the dialog with MainDlgRestart rather than applying it in
+		// place, because the layout USER32 computed from the old font cannot be revised -
+		// see Font.h. A fresh CMainDlg each time round: the ATL thunk is single-use.
+		do
+		{
+			CMainDlg dlgMain;
+			nRet = (int)dlgMain.DoModal();
+		} while (nRet == MainDlgRestart);
 	}
 
 	Theme::Shutdown();

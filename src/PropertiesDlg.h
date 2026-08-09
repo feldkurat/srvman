@@ -2,12 +2,13 @@
 #include "resource.h"
 #include <bzshlp/Win32/services.h>
 
+#include "Font.h"
 #include "Theme.h"
 
 #define BEGIN_MAP int get_something() {
 
 
-class CPropertiesDlg : public CDialogImpl<CPropertiesDlg>, public CDialogResize<CPropertiesDlg>
+class CPropertiesDlg : public CUserFontDialogImpl<CPropertiesDlg>, public CDialogResize<CPropertiesDlg>
 {
 private:
 	BazisLib::Win32::Service *m_pService;

@@ -54,8 +54,13 @@ Do not use `CopyFromScreen` on the whole desktop; it captures the user's other w
 
 To drive the app without a human, `PostMessage` its own command IDs:
 `WM_COMMAND` with `1001` opens Properties, `0xE140` opens About, `32804`/`32805`/`32806`
-switch the theme. Use `PostMessage`, not `SendMessage` — these open modal dialogs and would
-deadlock the sender.
+switch the theme, `32808` resets the font. Use `PostMessage`, not `SendMessage` — these open
+modal dialogs and would deadlock the sender. `32807` is the font chooser, which is a system
+modal dialog and cannot be driven this way; to test a font, write `FontFaceName` and
+`FontPointSize` (tenths of a point) under `HKCU\SOFTWARE\SysProgs\SrvMan` and start the app.
+
+Note that a font change re-creates the main dialog, so its `HWND` changes and
+`Process.MainWindowHandle` goes stale — find the window again by title.
 
 ## Layout
 
@@ -64,6 +69,7 @@ build.py              build system - the VS2008 .sln/.vcproj in src/ are dead, i
 src/*.cpp, *.h        first-party code
 src/srvman.rc         all dialogs, the menu, version info
 src/srvman.manifest   DPI awareness; merged into the linker-generated manifest
+src/Dpi.h, Font.*     scaling and the user-selectable UI font - see below
 src/resource.h        control and command IDs
 src/version.h         the version number - the only place it is spelled out
 src/BazisLib/         VENDORED - see below
@@ -104,7 +110,8 @@ is why the text used to be blurry above 100%.
   picks at the DPI in effect. `SystemParametersInfo` and `GetSystemMetrics` likewise
   return scaled values now — that is what `SM_CXSMICON` is for in the image list code.
 - Anything the code states in **pixels** must go through `Dpi::Scale()` (`src/Dpi.h`). The
-  list view column defaults in `MainDlg.cpp` are the existing case.
+  list view column defaults in `MainDlg.cpp` are the existing case; they also go through
+  `Font::ScaleTextWidth()`, which is the orthogonal question of which font is in use.
 - **Sizes read back from the registry are already in device pixels** and must not be
   scaled again — `SaveState()` writes what `GetColumnWidth()` reported. Only the built-in
   defaults are 96 DPI values; that is why the width is scaled on the `ReadValue()` failure
@@ -114,7 +121,44 @@ is why the text used to be blurry above 100%.
   the menu font in `Theme.cpp` and the column widths — do not declare `permonitorv2` in
   the manifest without writing it.
 
+## The font module
+
+`src/Font.h` + `src/Font.cpp` implement View → Font. The one thing to understand before
+touching it: **a dialog's font lives in its template, not in its windows.** USER32 derives
+the dialog base units from it while instantiating the template, and every coordinate in
+`srvman.rc` is in those units. So:
+
+- The font is applied by **rewriting the font block of the template** on its way to
+  `DialogBoxIndirectParam()` — `Font::PatchTemplate()` plus the `CUserFontDialogImpl<T>`
+  mixin, which every dialog derives from instead of `CDialogImpl<T>`. With no custom font
+  it defers to the base class and the resource is used untouched.
+- `DS_FIXEDSYS` has to be **cleared** when the block is rewritten. Next to `DS_SETFONT` it
+  is `DS_SHELLFONT`, which tells USER32 to ignore the typeface and substitute the shell
+  dialog font. `IDD_SERVICEPROPS` carries it.
+- The control array is copied over verbatim, so it has to keep its DWORD phase. Both the
+  old and the new offsets are DWORD-aligned, which is what makes that safe — preserve that
+  property if you touch the copy.
+- **A live dialog cannot be re-fonted.** `WM_SETFONT` would enlarge the text inside
+  rectangles already computed from the old font. Changing it ends the main dialog with
+  `MainDlgRestart` and `_tWinMain` builds a new one; a new `CMainDlg` each time round,
+  because the ATL thunk is single-use.
+- The service list needs nothing: controls inherit the dialog font at creation.
+- **The menu bar is out of reach** and staying that way. It is non-client area painted by
+  USER32 from the system-wide menu font; owner-drawing every menu would mean re-doing
+  check marks, mnemonics, the accelerator column and the greyed state by hand, in both
+  themes. The upside is that View → Font → Default is reachable at any font size.
+- The preference is under **HKCU**, unlike every other setting. `m_ParamsRoot` is HKLM and
+  opened for write, which no-ops unelevated (see the landmine below); a font the user
+  cannot keep would be worse than none.
+
 ## Landmines
+
+**Column widths have two fields for a reason.** `_ColumnDescription::DefaultWidth` is the
+width the column was authored with — 96 DPI, and the font `srvman.rc` names — and is never
+written to. `Width` is what is in effect: either what a previous session saved, or the
+default put through `Dpi::Scale()` and `Font::ScaleTextWidth()`. `s_Columns` is file-scope
+static and the main dialog is re-created on a font change, so scaling in place would
+compound on the second instantiation.
 
 **`*(BOOL *)NULL` handler calls.** `MainDlg.cpp` and `PropertiesDlg.cpp` call handlers
 directly with a null-dereferenced `bHandled` argument (search for `*(BOOL *)`). These

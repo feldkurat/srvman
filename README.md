@@ -70,6 +70,23 @@ dialog units from the dialog font); the sizes the code states in pixels go throu
 `src/Dpi.h`. Awareness is per process and fixed at startup: moving the window to a monitor
 with a different scale falls back to stretching until srvman is restarted there.
 
+### Choosing a font
+
+**View → Font → Choose…** picks the font for the service list and every dialog; **Default**
+goes back to the one the resources name. The choice is stored per user, under
+`HKCU\SOFTWARE\SysProgs\SrvMan`, so it sticks whether or not srvman runs elevated — unlike
+the window settings, which live in `HKLM` and are silently dropped unelevated.
+
+Changing it rebuilds the main window, because a dialog's layout is computed from its font
+once, when the template is instantiated. The list view column widths are carried across in
+proportion so a wider font does not clip what used to fit.
+
+The menu bar keeps the system font: it is non-client area drawn by USER32, and the only way
+to change it for one application is to owner-draw every menu. That also means Font →
+Default is always reachable, whatever size was picked. A font large enough to make a dialog
+exceed the screen will have its dialog clamped by USER32, and the controls near the right
+and bottom edges then fall outside the window.
+
 Useful extras:
 
 | Flag | Purpose |

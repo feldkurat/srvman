@@ -7,13 +7,19 @@
 #include <bzscore/Win32/registry.h>
 #include <bzshlp/Win32/services.h>
 
+#include "Font.h"
 #include "Theme.h"
 #include "version.h"
+
+//! Asks _tWinMain to build the main dialog again. USER32 bakes the font into the layout
+//! while instantiating the template, so a new font cannot be applied to the live window -
+//! see Font.h.
+enum { MainDlgRestart = -2 };
 
 //! Replaces WTL's CSimpleDialog<IDD_ABOUTBOX>, whose message map is sealed and so cannot
 //! be taught about WM_CTLCOLOR*. The template does nothing else we need: IDD_ABOUTBOX has
 //! no DLGINIT resource, and the template already carries DS_CENTER.
-class CAboutDlg : public CDialogImpl<CAboutDlg>
+class CAboutDlg : public CUserFontDialogImpl<CAboutDlg>
 {
 public:
 	enum { IDD = IDD_ABOUTBOX };
@@ -42,7 +48,7 @@ public:
 	}
 };
 
-class CMainDlg : public CDialogImpl<CMainDlg>, public CDialogResize<CMainDlg>
+class CMainDlg : public CUserFontDialogImpl<CMainDlg>, public CDialogResize<CMainDlg>
 {
 private:
 	CListViewCtrl m_ListView;
@@ -96,6 +102,8 @@ public:
 		COMMAND_ID_HANDLER(ID_THEME_LIGHT,			OnThemeChanged)
 		COMMAND_ID_HANDLER(ID_THEME_DARK,			OnThemeChanged)
 		COMMAND_ID_HANDLER(ID_THEME_SYSTEM,			OnThemeChanged)
+		COMMAND_ID_HANDLER(ID_FONT_CHOOSE,			OnFontChanged)
+		COMMAND_ID_HANDLER(ID_FONT_DEFAULT,			OnFontChanged)
 		COMMAND_ID_HANDLER(ID_HELP_OPENPROJECTPAGE,	OnOpenWebpage)
 		NOTIFY_HANDLER(IDC_LIST1, LVN_ITEMCHANGED, OnSelChanged)
 		COMMAND_ID_HANDLER(IDC_STARTSTOP,		StartStopService)
@@ -127,7 +135,10 @@ private:
 
 	void SetListItemText(unsigned Index, unsigned Subindex, LPCTSTR pszText);
 
-	void SaveState();
+	//! Column widths are stored in pixels, so a font change has to carry them over in
+	//! proportion - otherwise a wider font clips text that used to fit. The ratio is the
+	//! new average character width over the old one; 1:1 when nothing changed.
+	void SaveState(int nWidthNumerator = 1, int nWidthDenominator = 1);
 
 	//! Re-applies the current theme to this dialog and repaints it. Also refreshes the
 	//! bits of the window that are configured rather than painted - the list view's grid
@@ -154,6 +165,7 @@ public:
 	LRESULT OnRefreshSelected(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnIconModeChanged(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnThemeChanged(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
+	LRESULT OnFontChanged(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/);
 	LRESULT OnSettingChange(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM lParam, BOOL& /*bHandled*/);
 	LRESULT OnNcPaint(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& /*bHandled*/);
 	LRESULT OnOpenWebpage(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/);

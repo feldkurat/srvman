@@ -19,12 +19,16 @@
 
 using namespace BazisLib::Win32;
 
+//! DefaultWidth is the width the column was authored with: 96 DPI, and the font named in
+//! srvman.rc. It is never written to - the width in effect goes to Width, which is either
+//! what a previous session saved or DefaultWidth put through both scales.
 static struct _ColumnDescription
 {
 	DWORD dwMenuID;
 	unsigned DefaultWidth;
 	const TCHAR *pRegistryKeyName;
 	bool Enabled;
+	unsigned Width;
 } s_Columns[] = {
 	{ID_VIEW_INTERNALNAME,	100, _T("InternalName"),	true},
 	{ID_VIEW_STATE,			60,	 _T("State"),			true},
@@ -69,14 +73,14 @@ LRESULT CMainDlg::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam
 
 	for (unsigned i = 0; i < __countof(s_Columns); i++)
 	{
-		//A width that a previous session stored is already in device pixels and is taken
-		//as it is. Only the built-in defaults above are written for 96 DPI and need
-		//scaling, or every column would come out a third too narrow at 150%.
-		if (!rkColumnWidths[s_Columns[i].pRegistryKeyName].ReadValue(&s_Columns[i].DefaultWidth).Successful())
-			s_Columns[i].DefaultWidth = Dpi::Scale(s_Columns[i].DefaultWidth);
+		//A width a previous session stored is already in device pixels and is taken as it
+		//is. Only the built-in default needs the two scales: 96 DPI to this screen, and
+		//the font srvman.rc names to the one the user picked.
+		if (!rkColumnWidths[s_Columns[i].pRegistryKeyName].ReadValue(&s_Columns[i].Width).Successful())
+			s_Columns[i].Width = Dpi::Scale(Font::ScaleTextWidth(s_Columns[i].DefaultWidth));
 
 		rkVisibleCols[s_Columns[i].pRegistryKeyName].ReadValue(&s_Columns[i].Enabled);
-		m_ListView.SetColumnWidth(i, s_Columns[i].Enabled ? s_Columns[i].DefaultWidth : 0);
+		m_ListView.SetColumnWidth(i, s_Columns[i].Enabled ? s_Columns[i].Width : 0);
 		m_MainMenu.CheckMenuItem(s_Columns[i].dwMenuID, (s_Columns[i].Enabled) ? MF_CHECKED : MF_UNCHECKED);
 	}
 
@@ -107,6 +111,7 @@ LRESULT CMainDlg::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam
 
 	m_MainMenu.CheckMenuItem(ID_ICONMEANING_SERVICETYPE, (m_IconDisplayMode == imServiceType) ? MF_CHECKED : MF_UNCHECKED);
 	m_MainMenu.CheckMenuItem(ID_ICONMEANING_SERVICESTATE, (m_IconDisplayMode == imServiceState) ? MF_CHECKED : MF_UNCHECKED);
+	m_MainMenu.CheckMenuItem(ID_FONT_DEFAULT, Font::IsCustom() ? MF_UNCHECKED : MF_CHECKED);
 
 	ReloadServiceList();
 
@@ -236,7 +241,7 @@ LRESULT CMainDlg::OnViewFlagsChanged( WORD /*wNotifyCode*/, WORD wID, HWND /*hWn
 		if (s_Columns[i].dwMenuID == wID)
 		{
 			s_Columns[i].Enabled = !s_Columns[i].Enabled;
-			m_ListView.SetColumnWidth(i, s_Columns[i].Enabled ? s_Columns[i].DefaultWidth : 0);
+			m_ListView.SetColumnWidth(i, s_Columns[i].Enabled ? s_Columns[i].Width : 0);
 			m_MainMenu.CheckMenuItem(s_Columns[i].dwMenuID, (s_Columns[i].Enabled) ? MF_CHECKED : MF_UNCHECKED);
 			rkVisibleCols[s_Columns[i].pRegistryKeyName] = s_Columns[i].Enabled;
 			break;
@@ -330,6 +335,21 @@ LRESULT CMainDlg::OnThemeChanged( WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl
 	}
 	Theme::SetPreference(pref);
 	RefreshTheme();
+	return 0;
+}
+
+LRESULT CMainDlg::OnFontChanged( WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/ )
+{
+	const int OldCharWidth = Font::AverageCharWidth();
+
+	if (!((wID == ID_FONT_CHOOSE) ? Font::Choose(m_hWnd) : Font::Reset()))
+		return 0;	//cancelled, or the same font as before
+
+	//Unlike the theme, a font cannot be applied to a window that already exists: USER32
+	//turned it into control positions when it instantiated the template. Save - carrying
+	//the column widths over to the new font - and ask _tWinMain for a fresh dialog.
+	SaveState(Font::AverageCharWidth(), OldCharWidth);
+	EndDialog(MainDlgRestart);
 	return 0;
 }
 
@@ -471,12 +491,16 @@ LRESULT CMainDlg::OnClose( UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, 
 	return 0;
 }
 
-void CMainDlg::SaveState()
+void CMainDlg::SaveState(int nWidthNumerator, int nWidthDenominator)
 {
+	if (nWidthNumerator <= 0 || nWidthDenominator <= 0)
+		nWidthNumerator = nWidthDenominator = 1;	//a measurement failed; store as they are
+
 	Win32::RegistryKey rkColumnWidths(m_ParamsRoot, tszColumnWidthsSubkey);
 	for (unsigned i = 0; i < __countof(s_Columns); i++)
 		if (s_Columns[i].Enabled)
-			rkColumnWidths[s_Columns[i].pRegistryKeyName] = m_ListView.GetColumnWidth(i);
+			rkColumnWidths[s_Columns[i].pRegistryKeyName] =
+				::MulDiv(m_ListView.GetColumnWidth(i), nWidthNumerator, nWidthDenominator);
 }
 
 LRESULT CMainDlg::OnSelChanged( int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/ )
